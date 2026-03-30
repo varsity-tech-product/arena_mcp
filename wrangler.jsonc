@@ -1,0 +1,27 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "arena-mcp-server",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-03-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"migrations": [
+		{
+			"new_sqlite_classes": ["ArenaMCP"],
+			"tag": "v1"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "ArenaMCP",
+				"name": "MCP_OBJECT"
+			}
+		]
+	},
+	"vars": {
+		"ARENA_API_BASE": "https://api-staging.varsity.lol/v1"
+	},
+	"observability": {
+		"enabled": true
+	}
+}
