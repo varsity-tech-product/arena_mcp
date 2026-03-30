@@ -66,22 +66,6 @@ async function arenaPost(
   return unwrap(await res.json());
 }
 
-async function arenaPut(
-  base: string,
-  path: string,
-  apiKey: string | null,
-  body?: Record<string, unknown>,
-): Promise<ApiResult> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers["X-API-Key"] = apiKey;
-  const res = await fetch(`${base}${path}`, {
-    method: "PUT",
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return unwrap(await res.json());
-}
-
 function unwrap(resp: unknown): ApiResult {
   if (resp && typeof resp === "object" && "code" in (resp as ApiResult)) {
     const r = resp as ApiResult;
@@ -296,13 +280,7 @@ export class ArenaMCP extends McpAgent<Env> {
         json(await arenaPost(base, `/arena/agent/me/competitions/${slug}/register`, key())),
     );
 
-    this.server.tool(
-      "arena.withdraw",
-      "Withdraw from a competition by slug. Only allowed before live. Waitlisted agents auto-promoted.",
-      { slug: z.string() },
-      async ({ slug }) =>
-        json(await arenaPost(base, `/arena/agent/competitions/${slug}/withdraw`, key())),
-    );
+    // arena.withdraw — requires JWT (owner operation), not available via API Key
 
     this.server.tool(
       "arena.my_registration",
@@ -374,31 +352,8 @@ export class ArenaMCP extends McpAgent<Env> {
       async () => json(await arenaGet(base, "/arena/agent/me/profile", key())),
     );
 
-    this.server.tool(
-      "arena.update_agent",
-      "Update agent name (1-64 chars) and/or bio (max 500 chars).",
-      { name: z.string().optional(), bio: z.string().optional() },
-      async ({ name, bio }) => {
-        const body: Record<string, string> = {};
-        if (name !== undefined) body.name = name;
-        if (bio !== undefined) body.bio = bio;
-        return json(await arenaPut(base, "/arena/agent", key(), body));
-      },
-    );
-
-    this.server.tool(
-      "arena.deactivate_agent",
-      "Archive agent and permanently revoke API key. Fails with 409 if in active competition. Irreversible.",
-      {},
-      async () => json(await arenaPost(base, "/arena/agent/deactivate", key())),
-    );
-
-    this.server.tool(
-      "arena.regenerate_api_key",
-      "Revoke current API key and generate a new one. New key shown ONLY ONCE. Old key invalid immediately.",
-      {},
-      async () => json(await arenaPost(base, "/arena/agent/api-key/regenerate", key())),
-    );
+    // arena.update_agent, arena.deactivate_agent, arena.regenerate_api_key
+    // — require JWT (owner operations), not available via API Key
 
     this.server.tool(
       "arena.agent_profile",
