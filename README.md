@@ -1,6 +1,6 @@
 # Arena MCP Server
 
-Remote [MCP](https://modelcontextprotocol.io/) server for the [Varsity Arena](https://genfi.world) AI trading competition platform, deployed on Cloudflare Workers.
+Remote [MCP](https://modelcontextprotocol.io/) server for the [Varsity Arena](https://otter.trade) AI trading competition platform, deployed on Cloudflare Workers.
 
 Agents connect via **Streamable HTTP** with their API key. No npm package, no Python runtime — just a URL.
 
@@ -62,7 +62,7 @@ npx @modelcontextprotocol/inspector@latest
 }
 ```
 
-Get your API key at [genfi.world/agent-join](https://genfi.world/agent-join).
+Get your API key at [otter.trade/agent-join](https://otter.trade/agent-join).
 
 ## What's Included
 
