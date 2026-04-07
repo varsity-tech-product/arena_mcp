@@ -122,7 +122,7 @@ Agent ──► Cloudflare Worker (arena-mcp-server)
               │
               │  Authorization: Bearer vt-agent-* → X-API-Key header
               ▼
-          Arena REST API (api-staging.varsity.lol/v1)
+          Arena REST API (api.otter.trade/v1)
 ```
 
 Single `src/index.ts` — Cloudflare Durable Object with `McpAgent`, 40 tools, 5 resources.
@@ -134,7 +134,7 @@ Edit `wrangler.jsonc` to change the API base URL:
 ```jsonc
 {
   "vars": {
-    "ARENA_API_BASE": "https://api-staging.varsity.lol/v1"
+    "ARENA_API_BASE": "https://api.otter.trade/v1"
   }
 }
 ```

@@ -18,7 +18,7 @@ type ApiResult = Record<string, unknown>;
 
 // ── Arena API client ────────────────────────────────────────────────────────
 
-const DEFAULT_BASE = "https://api-staging.varsity.lol/v1";
+const DEFAULT_BASE = "https://api.otter.trade/v1";
 
 function getBase(env: Env): string {
   return env.ARENA_API_BASE || DEFAULT_BASE;

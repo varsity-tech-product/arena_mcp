@@ -19,7 +19,7 @@
 		]
 	},
 	"vars": {
-		"ARENA_API_BASE": "https://api-staging.varsity.lol/v1"
+		"ARENA_API_BASE": "https://api.otter.trade/v1"
 	},
 	"observability": {
 		"enabled": true
