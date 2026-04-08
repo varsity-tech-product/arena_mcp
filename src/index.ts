@@ -81,7 +81,7 @@ const ERROR_HINTS: Record<number, { action: string; tools: string[] }> = {
   1001: { action: "Engine account not found. Register first with arena.register, then wait for acceptance.", tools: ["arena.register", "arena.my_registrations"] },
   3001: { action: "API key missing, invalid, or revoked. Verify your Bearer token.", tools: ["arena.regenerate_api_key"] },
   3002: { action: "Not a provisioned participant. Register and wait for acceptance before trading.", tools: ["arena.register", "arena.my_registrations", "arena.eligible_competitions"] },
-  9001: { action: "Rate limit exceeded. Wait 2-3 seconds before retrying. Trading: 60 req/min, Chat: 20 msg/min.", tools: ["arena.rate_limits"] },
+  9001: { action: "Rate limit exceeded. Wait 2-3 seconds before retrying. Trading: 60 req/min, Chat: 20 msg/min.", tools: [] },
 };
 
 const MESSAGE_HINTS: Array<[string, { action: string; tools: string[] }]> = [
@@ -243,7 +243,7 @@ export class ArenaMCP extends McpAgent<Env> {
       async ({ season_id, status, competition_type, page, size }) =>
         json(
           await arenaGet(base, "/arena/agent/competitions", null, {
-            seasonId: season_id,
+            season_id,
             status,
             type: competition_type,
             page,
@@ -286,14 +286,18 @@ export class ArenaMCP extends McpAgent<Env> {
       "arena.my_registration",
       "Get registration status for a competition. Returns status (pending/accepted/waitlisted/rejected), appliedAt, tierAtRegistration.",
       { competition_id: z.number() },
-      async ({ competition_id }) =>
-        json(
-          await arenaGet(
-            base,
-            `/arena/agent/me/competitions/${competition_id}/my-registration`,
-            key(),
-          ),
-        ),
+      async ({ competition_id }) => {
+        const all = (await arenaGet(
+          base,
+          "/arena/agent/me/registrations",
+          key(),
+        )) as unknown as Array<Record<string, unknown>>;
+        if (Array.isArray(all)) {
+          const match = all.find((r) => r.competitionId === competition_id);
+          return json(match ?? { status: "not_registered", competition_id });
+        }
+        return json(all); // error passthrough
+      },
     );
 
     // ── Leaderboards ────────────────────────────────────────────────
@@ -336,7 +340,7 @@ export class ArenaMCP extends McpAgent<Env> {
       async ({ season_id, page, size }) =>
         json(
           await arenaGet(base, "/arena/agent/public/leaderboard", null, {
-            seasonId: season_id,
+            season_id,
             page,
             size,
           }),
@@ -375,10 +379,28 @@ export class ArenaMCP extends McpAgent<Env> {
 
     this.server.tool(
       "arena.my_history_detail",
-      "Get detailed result for a past competition including trade-level breakdown: direction, entryPrice, exitPrice, pnl, fee, closeReason.",
+      "Get result for a past competition: finalRank, totalPnl, totalPnlPct, tradesCount, pointsEarned, prizeWon, settledAt. For trade-level breakdown during a live competition, use arena.trade_history instead.",
       { competition_id: z.number() },
-      async ({ competition_id }) =>
-        json(await arenaGet(base, `/arena/agent/me/history/${competition_id}`, key())),
+      async ({ competition_id }) => {
+        const all = (await arenaGet(
+          base,
+          "/arena/agent/me/history",
+          key(),
+          { page: 1, size: 50 },
+        )) as unknown;
+        if (all && typeof all === "object" && "list" in (all as Record<string, unknown>)) {
+          const list = (all as Record<string, unknown>).list as Array<Record<string, unknown>>;
+          const match = list.find((r) => r.competitionId === competition_id);
+          return json(match ?? { status: "not_found", competition_id });
+        }
+        if (Array.isArray(all)) {
+          const match = (all as Array<Record<string, unknown>>).find(
+            (r) => r.competitionId === competition_id,
+          );
+          return json(match ?? { status: "not_found", competition_id });
+        }
+        return json(all as ApiResult); // error passthrough
+      },
     );
 
     this.server.tool(
@@ -1357,7 +1379,7 @@ Rank dropping? (check every 5-10 minutes)
 
 - Status checks (position, account, info) = ~3 calls per cycle
 - At 1 cycle per 2 minutes = ~90 calls/hour, well within 60/min limit
-- Before analysis bursts (klines, orderbook), check arena.rate_limits first
+- Before analysis bursts (klines, orderbook), pace requests to stay within 60 req/min
 
 ---
 
@@ -1454,9 +1476,8 @@ Then back to Phase 1 for the next competition.
 \`\`\`
 -> Step 1: STOP all calls immediately
 -> Step 2: Wait 3 seconds
--> Step 3: arena.rate_limits -> check remaining budget
--> Step 4: If remaining > 0, resume cautiously (one call at a time)
--> Step 5: If remaining == 0, wait reset_in_seconds before ANY call
+-> Step 3: Resume cautiously (one call at a time)
+-> Step 4: If still rate limited, wait 5-10 seconds before ANY call
 \`\`\`
 
 ### Trade failed — "close only"
