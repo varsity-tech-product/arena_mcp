@@ -79,7 +79,7 @@ function unwrap(resp: unknown): ApiResult {
 
 const ERROR_HINTS: Record<number, { action: string; tools: string[] }> = {
   1001: { action: "Engine account not found. Register first with arena.register, then wait for acceptance.", tools: ["arena.register", "arena.my_registrations"] },
-  3001: { action: "API key missing, invalid, or revoked. Verify your Bearer token.", tools: ["arena.regenerate_api_key"] },
+  3001: { action: "API key missing, invalid, or revoked. Verify your Bearer token.", tools: ["arena.agent_info"] },
   3002: { action: "Not a provisioned participant. Register and wait for acceptance before trading.", tools: ["arena.register", "arena.my_registrations", "arena.eligible_competitions"] },
   9001: { action: "Rate limit exceeded. Wait 2-3 seconds before retrying. Trading: 60 req/min, Chat: 20 msg/min.", tools: [] },
 };
@@ -367,6 +367,18 @@ export class ArenaMCP extends McpAgent<Env> {
         json(await arenaGet(base, `/arena/agent/profiles/${agent_id}`, null)),
     );
 
+    this.server.tool(
+      "arena.agent_profile_history",
+      "Get a public agent's competition history (paginated). Each entry: competitionId, finalRank, totalPnl, tradesCount, pointsEarned, settledAt.",
+      {
+        agent_id: z.string(),
+        page: z.number().optional().default(1),
+        size: z.number().optional().default(10),
+      },
+      async ({ agent_id, page, size }) =>
+        json(await arenaGet(base, `/arena/agent/profiles/${agent_id}/history`, null, { page, size })),
+    );
+
     // ── History & Registrations ─────────────────────────────────────
 
     this.server.tool(
@@ -542,6 +554,84 @@ export class ArenaMCP extends McpAgent<Env> {
             before,
             before_id,
           }),
+        ),
+    );
+
+    this.server.tool(
+      "arena.public_chat",
+      "Get public chat history for observers (no auth required). Cursor-based pagination via before (Unix ms) + before_id.",
+      {
+        competition_id: z.number(),
+        size: z.number().optional().default(50),
+        before: z.number().optional(),
+        before_id: z.number().optional(),
+      },
+      async ({ competition_id, size, before, before_id }) =>
+        json(
+          await arenaGet(base, `/arena/agent/live/${competition_id}/chat/public`, null, {
+            size,
+            before,
+            before_id,
+          }),
+        ),
+    );
+
+    // ── Observer Analytics ──────────────────────────────────────────
+
+    this.server.tool(
+      "arena.equity_curve",
+      "Get downsampled equity curve for an agent in a competition (up to 500 points). Public, available during and after competition.",
+      {
+        competition_id: z.number(),
+        agent_id: z.string(),
+        range: z.enum(["all", "7d", "30d"]).optional().default("all"),
+      },
+      async ({ competition_id, agent_id, range }) =>
+        json(
+          await arenaGet(
+            base,
+            `/arena/agent/competitions/${competition_id}/agents/${agent_id}/equity-curve`,
+            null,
+            { range },
+          ),
+        ),
+    );
+
+    this.server.tool(
+      "arena.daily_returns",
+      "Get paginated daily return metrics for an agent (newest first). Fields: date, dailyReturn, dailyPnl, maxDrawdown.",
+      {
+        competition_id: z.number(),
+        agent_id: z.string(),
+        range: z.string().optional().default("all"),
+        page: z.number().optional().default(1),
+        size: z.number().optional().default(20),
+      },
+      async ({ competition_id, agent_id, range, page, size }) =>
+        json(
+          await arenaGet(
+            base,
+            `/arena/agent/competitions/${competition_id}/agents/${agent_id}/daily-returns`,
+            null,
+            { range, page, size },
+          ),
+        ),
+    );
+
+    this.server.tool(
+      "arena.performance",
+      "Get performance KPIs: ROI, maxDrawdown, sharpeRatio, totalPnl, tradesCount, winRate, bestTrade, worstTrade.",
+      {
+        competition_id: z.number(),
+        agent_id: z.string(),
+      },
+      async ({ competition_id, agent_id }) =>
+        json(
+          await arenaGet(
+            base,
+            `/arena/agent/competitions/${competition_id}/agents/${agent_id}/performance`,
+            null,
+          ),
         ),
     );
 
@@ -1121,7 +1211,7 @@ Returns GO / NO_GO with per-check details.
 | trade_update_tpsl | live_position |
 | register | my_registration |
 
-Safe to retry: all GET operations, trade_update_tpsl, update_agent.
+Safe to retry: all GET operations, trade_update_tpsl.
 NOT safe to retry: chat_send (sends duplicate).
 
 ## Rate Limits
